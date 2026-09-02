@@ -1,4 +1,4 @@
-console.log('👑 RINTU SELFBOT - FINAL');
+console.log('👑 RINTU SELFBOT - ULTRA AGGRESSIVE CLEANING');
 
 require('dotenv').config();
 const express = require('express');
@@ -45,28 +45,66 @@ function saveTokens() {
     try { fs.writeFileSync(TOKEN_FILE, JSON.stringify(tokens, null, 2)); } catch (e) {}
 }
 
-function cleanToken(raw) {
-    // Remove spaces, newlines, quotes
-    let cleaned = raw.replace(/\s/g, '').replace(/["']/g, '');
-    // If token has . split, take first part (Discord tokens have . as separator)
-    if (cleaned.includes('.')) {
-        const parts = cleaned.split('.');
-        // Discord tokens are like: MTIzNDU2Nzg5MDEyMzQ1Njc4OQ.GbVxZP.Sp7DgNjC6ednFTEugk7KwRG-thaN2-1jrFCTUA
-        if (parts.length >= 3 && parts[0].length > 20) {
-            cleaned = parts[0] + '.' + parts[1] + '.' + parts[2];
+// ─── ULTRA AGGRESSIVE TOKEN CLEANING ───
+function extractTokensFromText(text) {
+    // Step 1: Remove ALL spaces, newlines, tabs
+    let cleaned = text.replace(/\s+/g, ' ');
+    
+    // Step 2: Split by spaces, newlines, commas
+    let parts = cleaned.split(/[\s,]+/);
+    
+    // Step 3: Find valid Discord tokens
+    const validTokens = [];
+    const tokenRegex = /[A-Za-z0-9_-]{20,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{20,}/g;
+    
+    parts.forEach(part => {
+        // Try to extract token using regex
+        const matches = part.match(tokenRegex);
+        if (matches) {
+            matches.forEach(m => {
+                if (m.length > 30 && m.length < 200) {
+                    validTokens.push(m);
+                }
+            });
         }
+    });
+    
+    // If regex didn't work, try manual extraction
+    if (validTokens.length === 0) {
+        parts.forEach(part => {
+            // Look for patterns that look like tokens (contains dots, length > 40)
+            if (part.includes('.') && part.length > 40 && part.length < 200) {
+                // Remove any remaining spaces
+                const cleanedPart = part.replace(/\s/g, '');
+                if (cleanedPart.includes('.') && cleanedPart.length > 40) {
+                    validTokens.push(cleanedPart);
+                }
+            }
+        });
     }
+    
+    return validTokens;
+}
+
+function cleanToken(raw) {
+    // Remove ALL whitespace
+    let cleaned = raw.replace(/\s/g, '');
+    // Remove quotes
+    cleaned = cleaned.replace(/["']/g, '');
     return cleaned;
 }
 
 function isValidToken(token) {
-    // Discord tokens are typically 50-80 characters
-    return token && token.length > 30 && token.length < 100 && token.includes('.');
+    // Discord tokens: at least 2 dots, length > 40
+    return token && token.includes('.') && token.length > 40 && token.length < 200;
 }
 
 function addToken(token, owner = 'default') {
     const cleaned = cleanToken(token);
-    if (!isValidToken(cleaned)) return null;
+    if (!isValidToken(cleaned)) {
+        console.log('[❌] Invalid token:', cleaned.substring(0, 30) + '...');
+        return null;
+    }
     
     const existing = tokens.find(t => t.token === cleaned);
     if (existing) {
@@ -332,7 +370,7 @@ app.post('/api/tokens/clear', (req, res) => {
     res.json({ success: true });
 });
 
-// ─── BULK ADD WITH CLEANING ───
+// ─── BULK ADD WITH ULTRA AGGRESSIVE CLEANING ───
 app.post('/api/tokens/bulk', (req, res) => {
     if (!admin) return res.status(401).json({ error: 'Unauthorized' });
     const { tokens: tokenList, owner } = req.body;
@@ -342,38 +380,53 @@ app.post('/api/tokens/bulk', (req, res) => {
     
     let added = 0;
     let failed = 0;
-    let invalid = 0;
     const results = [];
     
-    tokenList.forEach((rawToken, index) => {
-        if (rawToken && rawToken.length > 5) {
-            const cleaned = cleanToken(rawToken);
+    // Combine all text and extract tokens
+    const fullText = tokenList.join(' ');
+    const extractedTokens = extractTokensFromText(fullText);
+    
+    console.log('[🔍] Extracted', extractedTokens.length, 'tokens from text');
+    
+    if (extractedTokens.length === 0) {
+        // Try each line individually
+        tokenList.forEach(line => {
+            const cleaned = cleanToken(line);
             if (isValidToken(cleaned)) {
-                const result = addToken(cleaned, owner || `bot${index + 1}`);
+                const result = addToken(cleaned, owner || 'default');
                 if (result) {
                     added++;
-                    results.push({ token: cleaned.substring(0, 20) + '...', status: '✅' });
+                    results.push({ token: cleaned.substring(0, 20) + '...', status: '✅ added' });
                 } else {
                     failed++;
-                    results.push({ token: cleaned.substring(0, 20) + '...', status: '❌' });
+                    results.push({ token: cleaned.substring(0, 20) + '...', status: '❌ failed' });
                 }
             } else {
-                invalid++;
-                results.push({ token: rawToken.substring(0, 20) + '...', status: '⚠️ invalid' });
+                failed++;
+                results.push({ token: line.substring(0, 20) + '...', status: '❌ invalid' });
             }
-        } else {
-            invalid++;
-        }
-    });
+        });
+    } else {
+        extractedTokens.forEach((token, index) => {
+            const result = addToken(token, owner || `bot${index + 1}`);
+            if (result) {
+                added++;
+                results.push({ token: token.substring(0, 20) + '...', status: '✅ added' });
+            } else {
+                failed++;
+                results.push({ token: token.substring(0, 20) + '...', status: '❌ failed' });
+            }
+        });
+    }
     
-    addLog(`📦 Bulk: ${added} added, ${failed} failed, ${invalid} invalid`);
+    addLog(`📦 Bulk: ${added} added, ${failed} failed`);
     res.json({ 
         success: true, 
         added, 
         failed, 
-        invalid,
         total: tokenList.length,
-        results: results.slice(0, 20) // return first 20 results
+        results: results.slice(0, 20),
+        extracted: extractedTokens.length
     });
 });
 
@@ -442,13 +495,12 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`
 ╔══════════════════════════════════════════════════════════════╗
-║         👑 RINTU SELFBOT - FINAL 👑                        ║
-║         🔥 TOKEN CLEANING FIXED                            ║
+║       👑 RINTU - ULTRA AGGRESSIVE TOKEN CLEANING 👑        ║
+║       🔥 EXTRACTS TOKENS FROM ANY FORMAT                   ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  📦 Tokens: ${tokens.length}                                ║
 ║  ✅ Enabled: ${getEnabledTokens().length}                  ║
 ║  🔑 Admin: ${process.env.ADMIN_PASS || 'RINTU_2026'}       ║
-║  📌 Tokens with spaces are now CLEANED automatically      ║
 ╚══════════════════════════════════════════════════════════════╝
     `);
 
