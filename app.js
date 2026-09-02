@@ -1,4 +1,4 @@
-console.log('👑 RINTU SELFBOT - FIXED');
+console.log('👑 RINTU SELFBOT - INFINITE TOKENS');
 
 require('dotenv').config();
 const express = require('express');
@@ -83,7 +83,7 @@ function getEnabledTokens() {
 
 loadTokens();
 
-// ─── REAL SELFBOT LOGIN ───
+// ─── SELFBOT LOGIN ───
 async function stealthLogin(token, index) {
     try {
         console.log(`[🤖] Logging in bot ${index + 1}...`);
@@ -223,7 +223,7 @@ app.get('/', (req, res) => {
 <body>
 <div class="box">
     <h1>👑 RINTU</h1>
-    <div class="sub">SELFBOT</div>
+    <div class="sub">INFINITE TOKENS</div>
     <input type="password" id="adminPass" placeholder="Enter Password" onkeydown="if(event.key==='Enter') login()">
     <button class="btn" onclick="login()">🔓 UNLOCK</button>
     <div id="loginError" style="color:#ff0040; font-size:0.8rem; margin-top:5px; display:none;">❌ Wrong password!</div>
@@ -319,17 +319,48 @@ app.post('/api/tokens/stop', async (req, res) => {
     res.json({ success: true });
 });
 
+// ─── INFINITE BULK ADD ───
 app.post('/api/tokens/bulk', (req, res) => {
     if (!admin) return res.status(401).json({ error: 'Unauthorized' });
     const { tokens: tokenList, owner } = req.body;
     if (!tokenList || !Array.isArray(tokenList)) {
         return res.status(400).json({ error: 'Tokens array required' });
     }
+    
     let added = 0;
-    tokenList.forEach(t => {
-        if (t && t.length > 10) { addToken(t, owner || 'bulk'); added++; }
+    let failed = 0;
+    const results = [];
+    
+    tokenList.forEach((token, index) => {
+        if (token && token.length > 10) {
+            try {
+                const t = token.trim();
+                const result = addToken(t, owner || `bot${index + 1}`);
+                if (result) {
+                    added++;
+                    results.push({ token: t.substring(0, 15) + '...', status: '✅ added' });
+                } else {
+                    failed++;
+                    results.push({ token: t.substring(0, 15) + '...', status: '❌ failed' });
+                }
+            } catch (e) {
+                failed++;
+                results.push({ token: token.substring(0, 15) + '...', status: '❌ error' });
+            }
+        } else {
+            failed++;
+            results.push({ token: token.substring(0, 15) + '...', status: '❌ invalid' });
+        }
     });
-    res.json({ success: true, added, total: tokenList.length });
+    
+    addLog(`📦 Bulk added ${added} tokens (${failed} failed)`);
+    res.json({ 
+        success: true, 
+        added, 
+        failed, 
+        total: tokenList.length,
+        results 
+    });
 });
 
 // ─── VC JOIN ───
@@ -386,13 +417,14 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`
 ╔══════════════════════════════════════════════════════════════╗
-║           👑 RINTU SELFBOT - FIXED 👑                      ║
-║           🔥 NODE v18 COMPATIBLE                           ║
+║         👑 RINTU - INFINITE TOKENS 👑                      ║
+║         📦 BULK ADD ANY AMOUNT                             ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  📦 Tokens: ${tokens.length}                                ║
 ║  ✅ Enabled: ${getEnabledTokens().length}                  ║
 ║  🌐 Dashboard: https://your-app.railway.app                ║
 ║  🔑 Admin: ${process.env.ADMIN_PASS || 'RINTU_2026'}       ║
+║  📌 PASTE 100, 500, 1000+ TOKENS - ALL DETECTED           ║
 ╚══════════════════════════════════════════════════════════════╝
     `);
 
