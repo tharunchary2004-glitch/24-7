@@ -1,4 +1,4 @@
-console.log('👑 RINTU SELFBOT - INFINITE TOKENS');
+console.log('👑 RINTU SELFBOT - FINAL');
 
 require('dotenv').config();
 const express = require('express');
@@ -45,9 +45,30 @@ function saveTokens() {
     try { fs.writeFileSync(TOKEN_FILE, JSON.stringify(tokens, null, 2)); } catch (e) {}
 }
 
+function cleanToken(raw) {
+    // Remove spaces, newlines, quotes
+    let cleaned = raw.replace(/\s/g, '').replace(/["']/g, '');
+    // If token has . split, take first part (Discord tokens have . as separator)
+    if (cleaned.includes('.')) {
+        const parts = cleaned.split('.');
+        // Discord tokens are like: MTIzNDU2Nzg5MDEyMzQ1Njc4OQ.GbVxZP.Sp7DgNjC6ednFTEugk7KwRG-thaN2-1jrFCTUA
+        if (parts.length >= 3 && parts[0].length > 20) {
+            cleaned = parts[0] + '.' + parts[1] + '.' + parts[2];
+        }
+    }
+    return cleaned;
+}
+
+function isValidToken(token) {
+    // Discord tokens are typically 50-80 characters
+    return token && token.length > 30 && token.length < 100 && token.includes('.');
+}
+
 function addToken(token, owner = 'default') {
-    if (!token || token.length < 10) return null;
-    const existing = tokens.find(t => t.token === token);
+    const cleaned = cleanToken(token);
+    if (!isValidToken(cleaned)) return null;
+    
+    const existing = tokens.find(t => t.token === cleaned);
     if (existing) {
         existing.enabled = true;
         existing.owner = owner;
@@ -56,7 +77,7 @@ function addToken(token, owner = 'default') {
     }
     const newToken = {
         id: Date.now() + Math.random() * 1000,
-        token: token.trim(),
+        token: cleaned,
         owner: owner || 'default',
         enabled: true,
         created: new Date().toISOString()
@@ -223,7 +244,7 @@ app.get('/', (req, res) => {
 <body>
 <div class="box">
     <h1>👑 RINTU</h1>
-    <div class="sub">INFINITE TOKENS</div>
+    <div class="sub">SELFBOT</div>
     <input type="password" id="adminPass" placeholder="Enter Password" onkeydown="if(event.key==='Enter') login()">
     <button class="btn" onclick="login()">🔓 UNLOCK</button>
     <div id="loginError" style="color:#ff0040; font-size:0.8rem; margin-top:5px; display:none;">❌ Wrong password!</div>
@@ -281,11 +302,15 @@ app.get('/api/tokens', (req, res) => {
 app.post('/api/tokens/add', (req, res) => {
     if (!admin) return res.status(401).json({ error: 'Unauthorized' });
     const { token, owner } = req.body;
-    if (!token || token.length < 10) {
-        return res.status(400).json({ error: 'Invalid token' });
+    if (!token) {
+        return res.status(400).json({ error: 'Token required' });
     }
     const result = addToken(token, owner);
-    res.json({ success: true, token: result });
+    if (result) {
+        res.json({ success: true, token: result });
+    } else {
+        res.status(400).json({ error: 'Invalid token format' });
+    }
 });
 
 app.post('/api/tokens/delete', (req, res) => {
@@ -307,6 +332,51 @@ app.post('/api/tokens/clear', (req, res) => {
     res.json({ success: true });
 });
 
+// ─── BULK ADD WITH CLEANING ───
+app.post('/api/tokens/bulk', (req, res) => {
+    if (!admin) return res.status(401).json({ error: 'Unauthorized' });
+    const { tokens: tokenList, owner } = req.body;
+    if (!tokenList || !Array.isArray(tokenList)) {
+        return res.status(400).json({ error: 'Tokens array required' });
+    }
+    
+    let added = 0;
+    let failed = 0;
+    let invalid = 0;
+    const results = [];
+    
+    tokenList.forEach((rawToken, index) => {
+        if (rawToken && rawToken.length > 5) {
+            const cleaned = cleanToken(rawToken);
+            if (isValidToken(cleaned)) {
+                const result = addToken(cleaned, owner || `bot${index + 1}`);
+                if (result) {
+                    added++;
+                    results.push({ token: cleaned.substring(0, 20) + '...', status: '✅' });
+                } else {
+                    failed++;
+                    results.push({ token: cleaned.substring(0, 20) + '...', status: '❌' });
+                }
+            } else {
+                invalid++;
+                results.push({ token: rawToken.substring(0, 20) + '...', status: '⚠️ invalid' });
+            }
+        } else {
+            invalid++;
+        }
+    });
+    
+    addLog(`📦 Bulk: ${added} added, ${failed} failed, ${invalid} invalid`);
+    res.json({ 
+        success: true, 
+        added, 
+        failed, 
+        invalid,
+        total: tokenList.length,
+        results: results.slice(0, 20) // return first 20 results
+    });
+});
+
 app.post('/api/tokens/start', async (req, res) => {
     if (!admin) return res.status(401).json({ error: 'Unauthorized' });
     await startBots();
@@ -319,51 +389,6 @@ app.post('/api/tokens/stop', async (req, res) => {
     res.json({ success: true });
 });
 
-// ─── INFINITE BULK ADD ───
-app.post('/api/tokens/bulk', (req, res) => {
-    if (!admin) return res.status(401).json({ error: 'Unauthorized' });
-    const { tokens: tokenList, owner } = req.body;
-    if (!tokenList || !Array.isArray(tokenList)) {
-        return res.status(400).json({ error: 'Tokens array required' });
-    }
-    
-    let added = 0;
-    let failed = 0;
-    const results = [];
-    
-    tokenList.forEach((token, index) => {
-        if (token && token.length > 10) {
-            try {
-                const t = token.trim();
-                const result = addToken(t, owner || `bot${index + 1}`);
-                if (result) {
-                    added++;
-                    results.push({ token: t.substring(0, 15) + '...', status: '✅ added' });
-                } else {
-                    failed++;
-                    results.push({ token: t.substring(0, 15) + '...', status: '❌ failed' });
-                }
-            } catch (e) {
-                failed++;
-                results.push({ token: token.substring(0, 15) + '...', status: '❌ error' });
-            }
-        } else {
-            failed++;
-            results.push({ token: token.substring(0, 15) + '...', status: '❌ invalid' });
-        }
-    });
-    
-    addLog(`📦 Bulk added ${added} tokens (${failed} failed)`);
-    res.json({ 
-        success: true, 
-        added, 
-        failed, 
-        total: tokenList.length,
-        results 
-    });
-});
-
-// ─── VC JOIN ───
 app.post('/api/joinvc', async (req, res) => {
     if (!admin) return res.status(401).json({ error: 'Unauthorized' });
     const { channelId } = req.body;
@@ -417,14 +442,13 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`
 ╔══════════════════════════════════════════════════════════════╗
-║         👑 RINTU - INFINITE TOKENS 👑                      ║
-║         📦 BULK ADD ANY AMOUNT                             ║
+║         👑 RINTU SELFBOT - FINAL 👑                        ║
+║         🔥 TOKEN CLEANING FIXED                            ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  📦 Tokens: ${tokens.length}                                ║
 ║  ✅ Enabled: ${getEnabledTokens().length}                  ║
-║  🌐 Dashboard: https://your-app.railway.app                ║
 ║  🔑 Admin: ${process.env.ADMIN_PASS || 'RINTU_2026'}       ║
-║  📌 PASTE 100, 500, 1000+ TOKENS - ALL DETECTED           ║
+║  📌 Tokens with spaces are now CLEANED automatically      ║
 ╚══════════════════════════════════════════════════════════════╝
     `);
 
