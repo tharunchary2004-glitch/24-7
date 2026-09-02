@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8">
+    <title>👑 RINTU SELFBOT</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body { background: #0a0a0a; color: #00ffc8; font-family: 'Courier New', monospace; padding: 20px; }
+        .container { max-width: 600px; margin: 0 auto; }
+        h1 { color: #ff0040; text-align: center; font-size: 2.5rem; margin-bottom: 10px; }
+        .sub { text-align: center; color: #666; margin-bottom: 20px; }
+        .glass { background: rgba(10,10,10,0.8); border: 1px solid rgba(0,255,200,0.1); border-radius: 12px; padding: 15px; margin: 10px 0; }
+        .grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; }
+        .stat { text-align: center; padding: 10px; border: 1px solid rgba(0,255,200,0.05); border-radius: 8px; }
+        .stat .label { color: #666; font-size: 0.6rem; text-transform: uppercase; }
+        .stat .value { font-size: 1.8rem; font-weight: bold; }
+        input { background: rgba(0,0,0,0.5); color: #00ffc8; border: 1px solid rgba(0,255,200,0.1); padding: 8px; border-radius: 6px; width: 100%; margin: 4px 0; }
+        .btn { background: rgba(0,255,200,0.08); color: #00ffc8; border: 1px solid rgba(0,255,200,0.15); padding: 6px 12px; border-radius: 6px; cursor: pointer; font-size: 0.7rem; text-transform: uppercase; }
+        .btn:hover { background: rgba(0,255,200,0.15); }
+        .btn.danger { border-color: rgba(255,0,64,0.3); color: #ff0040; }
+        .btn.primary { border-color: rgba(255,136,0,0.3); color: #ff8800; }
+        .flex { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+        .token-list { max-height: 150px; overflow-y: auto; }
+        .token-item { display: flex; justify-content: space-between; padding: 4px 8px; border-bottom: 1px solid rgba(0,255,200,0.05); font-size: 0.7rem; align-items: center; }
+        .status { padding: 2px 8px; border-radius: 8px; font-size: 0.5rem; font-weight: bold; }
+        .status.on { background: rgba(0,255,200,0.15); color: #00ffc8; }
+        .status.off { background: rgba(255,0,64,0.15); color: #ff0040; }
+        #logs { background: rgba(0,0,0,0.3); padding: 8px; max-height: 100px; overflow-y: auto; font-size: 0.6rem; color: #666; border-radius: 6px; margin-top: 8px; }
+        .hidden { display: none !important; }
+        .login-box { text-align: center; max-width: 350px; margin: 40px auto; padding: 30px; border: 2px solid rgba(0,255,200,0.2); border-radius: 16px; }
+        .login-box input { width: 100%; padding: 12px; margin: 10px 0; }
+        .login-box button { width: 100%; padding: 12px; font-size: 1rem; }
+        @media (max-width: 480px) { .grid { grid-template-columns: repeat(2, 1fr); } h1 { font-size: 1.8rem; } }
+    </style>
+</head>
+<body>
+
+<div id="loginOverlay">
+    <div class="login-box">
+        <h1 style="font-size:2rem;">👑 RINTU</h1>
+        <div style="color:#666; margin:5px 0 15px;">SELFBOT</div>
+        <input type="password" id="adminPass" placeholder="Admin Password" onkeydown="if(event.key==='Enter') login()">
+        <button onclick="login()" class="btn primary">🔓 UNLOCK</button>
+    </div>
+</div>
+
+<div id="dashboard" class="container hidden">
+    <h1>👑 RINTU</h1>
+    <div class="sub">SELFBOT</div>
+
+    <div class="glass">
+        <div class="flex" style="justify-content:space-between;">
+            <span>🤖 <span id="onlineCount">0</span></span>
+            <span>📦 <span id="tokenCount">0</span></span>
+            <span>🔊 <span id="vcCount">0</span></span>
+            <button class="btn danger" onclick="logout()">LOGOUT</button>
+        </div>
+    </div>
+
+    <div class="grid">
+        <div class="stat"><div class="label">Online</div><div class="value" id="statBots">0</div></div>
+        <div class="stat"><div class="label">Tokens</div><div class="value" id="statTokens">0</div></div>
+        <div class="stat"><div class="label">VC</div><div class="value" id="statVC">0</div></div>
+    </div>
+
+    <div class="glass">
+        <div class="flex" style="justify-content:space-between;">
+            <h3>📁 TOKENS</h3>
+            <div class="flex">
+                <button class="btn primary" onclick="startAll()">▶ START</button>
+                <button class="btn danger" onclick="stopAll()">⏹ STOP</button>
+            </div>
+        </div>
+        <div class="flex">
+            <input type="text" id="tokenInput" placeholder="Token" style="flex:2;">
+            <input type="text" id="ownerInput" placeholder="Owner" style="flex:1;">
+            <button class="btn primary" onclick="addToken()">ADD</button>
+        </div>
+        <div class="token-list" id="tokenList"></div>
+    </div>
+
+    <div class="glass">
+        <h3>🔊 JOIN VC</h3>
+        <div class="flex">
+            <input type="text" id="vcChannel" placeholder="Channel ID" style="flex:2;">
+            <button class="btn primary" onclick="joinVC()">JOIN</button>
+        </div>
+        <div id="vcStatus" style="color:#666; font-size:0.8rem; margin-top:5px;"></div>
+    </div>
+
+    <div id="logs"></div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+    let socket = io();
+
+    function login() {
+        const pass = document.getElementById('adminPass').value;
+        fetch('/api/login', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ password: pass }) })
+        .then(r => r.json()).then(data => {
+            if (data.success) {
+                document.getElementById('loginOverlay').classList.add('hidden');
+                document.getElementById('dashboard').classList.remove('hidden');
+                loadTokens();
+                loadStats();
+                setInterval(loadStats, 3000);
+            } else { alert('❌ Wrong password!'); }
+        });
+    }
+
+    function logout() {
+        fetch('/api/logout', { method: 'POST' }).then(() => {
+            document.getElementById('loginOverlay').classList.remove('hidden');
+            document.getElementById('dashboard').classList.add('hidden');
+        });
+    }
+
+    function loadTokens() {
+        fetch('/api/tokens').then(r => r.json()).then(data => {
+            const list = document.getElementById('tokenList');
+            if (!data || data.length === 0) {
+                list.innerHTML = '<div style="color:#444; text-align:center; padding:15px;">No tokens.</div>';
+                return;
+            }
+            list.innerHTML = data.map(t => `
+                <div class="token-item">
+                    <span>${t.token ? t.token.substring(0, 15) + '...' : 'Invalid'}</span>
+                    <span>${t.owner || 'default'}</span>
+                    <span class="status ${t.enabled ? 'on' : 'off'}">${t.enabled ? 'ON' : 'OFF'}</span>
+                    <div>
+                        <button class="btn" onclick="toggleToken(${t.id})">↕</button>
+                        <button class="btn danger" onclick="deleteToken(${t.id})">✕</button>
+                    </div>
+                </div>
+            `).join('');
+            document.getElementById('tokenCount').textContent = data.length;
+            document.getElementById('statTokens').textContent = data.length;
+        });
+    }
+
+    function addToken() {
+        const token = document.getElementById('tokenInput').value.trim();
+        const owner = document.getElementById('ownerInput').value.trim() || 'default';
+        if (!token) return alert('❌ Enter token!');
+        fetch('/api/tokens/add', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ token, owner }) })
+        .then(r => r.json()).then(data => {
+            if (data.success) {
+                document.getElementById('tokenInput').value = '';
+                loadTokens();
+            }
+        });
+    }
+
+    function deleteToken(id) {
+        if (!confirm('Delete?')) return;
+        fetch('/api/tokens/delete', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
+        .then(() => loadTokens());
+    }
+
+    function toggleToken(id) {
+        fetch('/api/tokens/toggle', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ id }) })
+        .then(() => loadTokens());
+    }
+
+    function startAll() {
+        fetch('/api/tokens/start', { method: 'POST' });
+        document.getElementById('onlineCount').textContent = '⏳';
+    }
+
+    function stopAll() {
+        if (!confirm('Stop all?')) return;
+        fetch('/api/tokens/stop', { method: 'POST' });
+        document.getElementById('onlineCount').textContent = '0';
+    }
+
+    function joinVC() {
+        const channel = document.getElementById('vcChannel').value.trim();
+        if (!channel) return alert('❌ Channel ID required!');
+        document.getElementById('vcStatus').textContent = '⏳ Joining...';
+        fetch('/api/joinvc', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ channelId: channel }) })
+        .then(r => r.json()).then(data => {
+            if (data.success) { document.getElementById('vcStatus').textContent = '✅ Joined!'; }
+            else { document.getElementById('vcStatus').textContent = '❌ Failed'; }
+        });
+    }
+
+    function loadStats() {
+        fetch('/api/stats').then(r => r.json()).then(s => {
+            document.getElementById('statBots').textContent = s.online || 0;
+            document.getElementById('onlineCount').textContent = s.online || 0;
+            document.getElementById('statTokens').textContent = s.tokens || 0;
+        });
+    }
+
+    socket.on('stats', (data) => {
+        if (data.online !== undefined) {
+            document.getElementById('statBots').textContent = data.online;
+            document.getElementById('onlineCount').textContent = data.online;
+        }
+        if (data.tokens !== undefined) {
+            document.getElementById('statTokens').textContent = data.tokens;
+            document.getElementById('tokenCount').textContent = data.tokens;
+        }
+        if (data.connected !== undefined) {
+            document.getElementById('statVC').textContent = data.connected;
+            document.getElementById('vcCount').textContent = data.connected;
+        }
+    });
+
+    socket.on('log', (data) => {
+        const logs = document.getElementById('logs');
+        logs.innerHTML += `<div>[${data.time}] ${data.message}</div>`;
+        logs.scrollTop = logs.scrollHeight;
+        if (logs.children.length > 30) { logs.removeChild(logs.firstChild); }
+    });
+
+    console.log('👑 RINTU SELFBOT LOADED');
+</script>
+</body>
+</html>
