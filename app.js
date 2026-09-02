@@ -1,4 +1,4 @@
-console.log('👑 RINTU SELFBOT - RAILWAY');
+console.log('👑 RINTU SELFBOT - RAILWAY FIXED');
 console.log('📌 Node version:', process.version);
 
 require('dotenv').config();
@@ -19,7 +19,7 @@ try {
 
 // ─── IMPORTS ───
 const { Client } = require("discord.js-selfbot-v13");
-const { joinVoiceChannel } = require("@discordjs/voice");
+const { joinVoiceChannel } = require("@discordjs/voice"); // THIS IS THE IMPORT
 
 console.log('[✅] Modules loaded');
 
@@ -165,8 +165,8 @@ async function stopBots() {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// ─── VC JOIN ───
-async function joinVoiceChannel(channelId) {
+// ─── VC JOIN FUNCTION (RENAMED TO avoid conflict) ───
+async function joinVC(channelId) {
     const online = clients.filter(c => c?.user);
     if (online.length === 0) {
         addLog('❌ No bots online! Start tokens first.');
@@ -183,7 +183,7 @@ async function joinVoiceChannel(channelId) {
                 continue;
             }
 
-            const conn = joinVoiceChannel({
+            const conn = joinVoiceChannel({ // THIS IS THE IMPORTED FUNCTION
                 channelId: channel.id,
                 guildId: channel.guild.id,
                 adapterCreator: channel.guild.voiceAdapterCreator,
@@ -329,7 +329,7 @@ app.post('/api/joinvc', async (req, res) => {
     if (!admin) return res.status(401).json({ error: 'Unauthorized' });
     const { channelId } = req.body;
     if (!channelId) return res.status(400).json({ error: 'Channel ID required' });
-    await joinVoiceChannel(channelId);
+    await joinVC(channelId); // USING THE RENAMED FUNCTION
     res.json({ success: true });
 });
 
@@ -359,7 +359,7 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log(`
 ╔══════════════════════════════════════════════════════════════╗
 ║           👑 RINTU SELFBOT - RAILWAY 👑                    ║
-║           ✅ NO OPUS - VC JOIN ONLY                        ║
+║           ✅ FINALLY FIXED                                 ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  📦 Tokens: ${tokens.length}                                ║
 ║  ✅ Enabled: ${getEnabledTokens().length}                  ║
