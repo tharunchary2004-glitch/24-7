@@ -1,5 +1,4 @@
 console.log('👑 RINTU SELFBOT - RAILWAY');
-console.log('📌 Node version:', process.version);
 
 require('dotenv').config();
 const express = require('express');
@@ -17,9 +16,8 @@ try {
     }
 } catch (e) {}
 
-// ─── IMPORTS ───
+// ─── DISCORD CLIENT ───
 const { Client } = require("discord.js-selfbot-v13");
-const { joinVoiceChannel } = require("@discordjs/voice"); // ✅ imported
 
 console.log('[✅] Modules loaded');
 
@@ -165,7 +163,7 @@ async function stopBots() {
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// ─── VC JOIN (RENAMED to avoid conflict) ───
+// ─── VC JOIN ───
 async function joinVC(channelId) {
     const online = clients.filter(c => c?.user);
     if (online.length === 0) {
@@ -183,16 +181,8 @@ async function joinVC(channelId) {
                 continue;
             }
 
-            // ✅ USING IMPORTED FUNCTION
-            const conn = joinVoiceChannel({
-                channelId: channel.id,
-                guildId: channel.guild.id,
-                adapterCreator: channel.guild.voiceAdapterCreator,
-                selfMute: false,
-                selfDeaf: false,
-                group: client.user.id
-            });
-
+            // Simple VC join using voice connection
+            const conn = await client.voice.connect(channel.id);
             connected++;
             console.log(`[✅] Bot ${i+1} joined VC`);
         } catch (e) {
@@ -359,11 +349,11 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log(`
 ╔══════════════════════════════════════════════════════════════╗
 ║           👑 RINTU SELFBOT - RAILWAY 👑                    ║
-║           ✅ VC JOIN + TOKENS                              ║
+║           ✅ WORKING DEPLOYMENT                            ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  📦 Tokens: ${tokens.length}                                ║
 ║  ✅ Enabled: ${getEnabledTokens().length}                  ║
-║  🌐 Dashboard: https://your-app.railway.app                ║
+║  🌐 Dashboard: https://24-7-production-d945.up.railway.app ║
 ║  🔑 Admin: ${process.env.ADMIN_PASS || 'RINTU_2026'}       ║
 ╚══════════════════════════════════════════════════════════════╝
     `);
