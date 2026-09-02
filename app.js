@@ -359,7 +359,7 @@ server.listen(PORT, '0.0.0.0', () => {
     console.log(`
 ╔══════════════════════════════════════════════════════════════╗
 ║           👑 RINTU SELFBOT - RAILWAY 👑                    ║
-║           ✅ EASIEST DEPLOYMENT                             ║
+║           ✅ NO OPUS - VC JOIN ONLY                        ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  📦 Tokens: ${tokens.length}                                ║
 ║  ✅ Enabled: ${getEnabledTokens().length}                  ║
