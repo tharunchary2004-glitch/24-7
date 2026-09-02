@@ -1,4 +1,4 @@
-console.log('👑 RINTU SELFBOT - REAL LOGIN');
+console.log('👑 RINTU SELFBOT - FIXED');
 
 require('dotenv').config();
 const express = require('express');
@@ -134,7 +134,6 @@ async function startBots() {
         return;
     }
 
-    // Destroy existing clients
     for (const c of clients) {
         try { await c.destroy(); } catch(e) {}
     }
@@ -333,6 +332,35 @@ app.post('/api/tokens/bulk', (req, res) => {
     res.json({ success: true, added, total: tokenList.length });
 });
 
+// ─── VC JOIN ───
+app.post('/api/joinvc', async (req, res) => {
+    if (!admin) return res.status(401).json({ error: 'Unauthorized' });
+    const { channelId } = req.body;
+    if (!channelId) return res.status(400).json({ error: 'Channel ID required' });
+    
+    const online = clients.filter(c => c?.user);
+    if (online.length === 0) {
+        return res.json({ success: false, error: 'No bots online!' });
+    }
+    
+    let connected = 0;
+    for (let i = 0; i < online.length; i++) {
+        const client = online[i];
+        try {
+            const channel = await client.channels.fetch(channelId);
+            if (!channel) continue;
+            await client.voice.connect(channel.id);
+            connected++;
+        } catch (e) {
+            console.log('[VC] Error:', e.message);
+        }
+        await sleep(1000);
+    }
+    
+    addLog(`🔊 ${connected}/${online.length} joined VC`);
+    res.json({ success: true, connected });
+});
+
 app.get('/api/stats', (req, res) => {
     if (!admin) return res.status(401).json({ error: 'Unauthorized' });
     res.json({
@@ -358,14 +386,13 @@ const PORT = process.env.PORT || 3000;
 server.listen(PORT, '0.0.0.0', () => {
     console.log(`
 ╔══════════════════════════════════════════════════════════════╗
-║           👑 RINTU SELFBOT - REAL LOGIN 👑                 ║
-║           🔥 ACTUALLY LOGS INTO DISCORD                    ║
+║           👑 RINTU SELFBOT - FIXED 👑                      ║
+║           🔥 NODE v18 COMPATIBLE                           ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  📦 Tokens: ${tokens.length}                                ║
 ║  ✅ Enabled: ${getEnabledTokens().length}                  ║
 ║  🌐 Dashboard: https://your-app.railway.app                ║
 ║  🔑 Admin: ${process.env.ADMIN_PASS || 'RINTU_2026'}       ║
-║  📌 BOTS WILL LOGIN WHEN YOU CLICK START                   ║
 ╚══════════════════════════════════════════════════════════════╝
     `);
 
